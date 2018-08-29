@@ -1,11 +1,8 @@
-import com.sun.xml.internal.bind.v2.TODO;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Scanner;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,7 +45,7 @@ public class GCStream {
                     randomAccessLogFile.seek(lastKnownLocation);
                     String tempLine = null;
                     while ((tempLine = randomAccessLogFile.readLine()) != null) {
-                        Parser.analyizePauseTime(tempLine);
+                        Parser.analyzePauseTime(tempLine);
                         lastKnownLocation++;
                     }
 
@@ -56,7 +53,7 @@ public class GCStream {
                     Scanner fileReader = new Scanner(logFile);
                     while (fileReader.hasNext()) {
                         String tempLine = fileReader.nextLine();
-                        Parser.analyizePauseTime(tempLine);
+                        Parser.analyzePauseTime(tempLine);
 
                     }
                 }
@@ -80,7 +77,7 @@ class Parser {
     public static String floatNumberPatternString = "([0-9]*[.])?[0-9]+";
     public static Pattern floatNumberPattern = Pattern.compile(floatNumberPatternString);
 
-    public static void analyizePauseTime(String line) {
+    public static void analyzePauseTime(String line) {
         boolean hasPause = line.matches(pauseTimePatternString);
         if (hasPause) {
             try {
