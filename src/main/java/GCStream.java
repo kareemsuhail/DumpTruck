@@ -1,8 +1,11 @@
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import com.sun.net.httpserver.HttpServer;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.prometheus.PrometheusConfig;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
+import java.io.*;
+import java.net.InetSocketAddress;
 import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +31,8 @@ public class GCStream {
     }
 
     public void run() {
+        Parser parser = new Parser();
+        parser.setup();
         while(true){
 
             try {
@@ -45,7 +50,7 @@ public class GCStream {
                     randomAccessLogFile.seek(lastKnownLocation);
                     String tempLine = null;
                     while ((tempLine = randomAccessLogFile.readLine()) != null) {
-                        Parser.analyzePauseTime(tempLine);
+                        parser.analyzePauseTime(tempLine);
                         lastKnownLocation++;
                     }
 
@@ -53,7 +58,7 @@ public class GCStream {
                     Scanner fileReader = new Scanner(logFile);
                     while (fileReader.hasNext()) {
                         String tempLine = fileReader.nextLine();
-                        Parser.analyzePauseTime(tempLine);
+                        parser.analyzePauseTime(tempLine);
 
                     }
                 }
@@ -73,21 +78,51 @@ public class GCStream {
 
 class Parser {
 
+    Timer timer ;
+
     public static String pauseTimePatternString = ", \\d+\\.\\d+ secs]";
     public static String floatNumberPatternString = "([0-9]*[.])?[0-9]+";
     public static Pattern floatNumberPattern = Pattern.compile(floatNumberPatternString);
+    PrometheusMeterRegistry prometheusRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
 
-    public static void analyzePauseTime(String line) {
+    public void analyzePauseTime(String line) {
         boolean hasPause = line.matches(pauseTimePatternString);
         if (hasPause) {
             try {
                 Matcher secsMatcher = floatNumberPattern.matcher(line);
                 secsMatcher.find();
                 System.out.println(secsMatcher.group(0));
+                timer.record(122, TimeUnit.MILLISECONDS);
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
         }
+    }
+    public  void setup(){
+
+        try {
+            //TODO change prometheus config
+            HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+            server.createContext("/prometheus", httpExchange -> {
+                String response = prometheusRegistry.scrape();
+                httpExchange.sendResponseHeaders(200, response.getBytes().length);
+                try (OutputStream os = httpExchange.getResponseBody()) {
+                    os.write(response.getBytes());
+                }
+            });
+
+            new Thread(server::start).start();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        timer = Timer
+                .builder("pause.time")
+                .description("GC pause time timer") // optional
+                .tags("region", "test") // optional
+                .register(prometheusRegistry);
+
+
     }
 }
