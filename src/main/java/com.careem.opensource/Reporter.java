@@ -23,21 +23,12 @@ public class Reporter implements Runnable {
   private final Path logFilePath;
   private final Parser parser;
 
-  private final Timer timer;
-
-  public Reporter(
-      MeterRegistry meterRegistry, String logFileName, String logFileDirectory,
-      Parser parser
-  ) {
+  public Reporter(MeterRegistry meterRegistry, String logFileName, Parser parser) {
     this.meterRegistry = meterRegistry;
     this.logFileName = logFileName;
-    this.logFileDirectoryPath = FileSystems.getDefault().getPath(logFileDirectory);
-    this.logFilePath = FileSystems.getDefault().getPath(logFileDirectory + "/" + logFileName);
+    this.logFileDirectoryPath = FileSystems.getDefault().getPath("/tmp");
+    this.logFilePath = FileSystems.getDefault().getPath("/tmp/" + logFileName);
     this.parser = parser;
-
-    timer = Timer.builder("time_total")
-        .tags("metrics", "pauseTime")
-        .register(meterRegistry);
   }
 
   @Override
@@ -51,10 +42,19 @@ public class Reporter implements Runnable {
           for (WatchEvent<?> event : watchKey.pollEvents()) {
             Path changed = (Path) event.context();
             if (changed.endsWith(logFileName)) {
+              // read and parse data
               String line = bufferedReader.readLine();
               log.info(line);
-              double pauseTime = parser.analyzePauseTime(line);
-              timer.record(new Double(pauseTime).longValue(), TimeUnit.MILLISECONDS);
+              GcData gcData = parser.parseLine(line);
+
+              // record metrics
+              //TODO: make this ENUM switch
+              if (gcData.getName().equals("pause_time")) {
+                Timer.builder(gcData.getName())
+                    .tags("cause", gcData.getTag())
+                    .register(meterRegistry)
+                    .record(new Double(gcData.getValue()).longValue(), TimeUnit.MILLISECONDS);
+              }
             }
           }
 
