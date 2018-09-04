@@ -12,6 +12,16 @@ repositories {
     mavenCentral()
 }
 
+jar {
+    manifest {
+        attributes "Main-Class": "com.careem.opensource.Main"
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
 dependencies {
     compile group: 'io.micrometer', name: 'micrometer-registry-prometheus', version: 'latest.release'
     compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.2'
