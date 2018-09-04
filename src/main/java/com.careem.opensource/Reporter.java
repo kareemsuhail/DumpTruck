@@ -17,6 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class Reporter implements Runnable {
 
+  private static final String BASE_LOG_PATH = "/tmp";
+
   private final MeterRegistry meterRegistry;
   private final String logFileName;
   private final Path logFileDirectoryPath;
@@ -26,34 +28,38 @@ public class Reporter implements Runnable {
   public Reporter(MeterRegistry meterRegistry, String logFileName, Parser parser) {
     this.meterRegistry = meterRegistry;
     this.logFileName = logFileName;
-    this.logFileDirectoryPath = FileSystems.getDefault().getPath("/tmp");
-    this.logFilePath = FileSystems.getDefault().getPath("/tmp/" + logFileName);
+    this.logFileDirectoryPath = FileSystems.getDefault().getPath(BASE_LOG_PATH);
+    this.logFilePath = FileSystems.getDefault().getPath(BASE_LOG_PATH + "/" + logFileName);
     this.parser = parser;
   }
 
   @Override
   public void run() {
-    log.info("Running Garbage Collector Reader");
+    log.debug("Running Garbage Collector Reporter");
     try (BufferedReader bufferedReader = Files.newBufferedReader(logFilePath)) {
       try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
-        logFileDirectoryPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
-        while (true) {
-          WatchKey watchKey = watchService.take();
+        logFileDirectoryPath.register(
+            watchService, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW
+        );
+        WatchKey watchKey;
+        while ((watchKey = watchService.take()) != null) {
           for (WatchEvent<?> event : watchKey.pollEvents()) {
             Path changed = (Path) event.context();
-            if (changed.endsWith(logFileName)) {
-              // read and parse data
-              String line = bufferedReader.readLine();
-              log.info(line);
-              GcData gcData = parser.parseLine(line);
+            log.debug(
+                "[{}]: File content has been affected by event {}",
+                changed.toString(), event.kind().name()
+            );
+            if (event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
+              if (changed.endsWith(logFileName)) {
+                GcData gcData = parser.parse(bufferedReader);
 
-              // record metrics
-              //TODO: make this ENUM switch
-              if (gcData.getName().equals("pause_time")) {
-                Timer.builder(gcData.getName())
-                    .tags("cause", gcData.getTag())
-                    .register(meterRegistry)
-                    .record(new Double(gcData.getValue()).longValue(), TimeUnit.MILLISECONDS);
+                //TODO: make this ENUM switch
+                if (gcData.getName().equals("pause_time")) {
+                  Timer.builder(gcData.getName())
+                      .tags("cause", gcData.getTag())
+                      .register(meterRegistry)
+                      .record(new Double(gcData.getValue()).longValue(), TimeUnit.MILLISECONDS);
+                }
               }
             }
           }

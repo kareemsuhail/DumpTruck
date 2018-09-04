@@ -1,5 +1,7 @@
 package com.careem.opensource;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -11,7 +13,8 @@ public class Parser {
   // gc data matchers
   private static final String TOTAL_PAUSE_TIME_REGEX = ", \\d+\\.\\d+ secs]";
 
-  public GcData parseLine(String line) {
+  public GcData parse(BufferedReader bufferedReader) throws IOException {
+    String line = bufferedReader.readLine();
     GcData.GcDataBuilder gcDataBuilder = GcData.builder();
     if (line.matches(TOTAL_PAUSE_TIME_REGEX)) {
       gcDataBuilder.name("pause_time");
