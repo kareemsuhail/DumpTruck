@@ -12,7 +12,9 @@ public class Main {
   public static void main(String[] args) {
     MeterRegistry meterRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
     Parser parser = new Parser();
-    Reporter gcLogReader = new Reporter(meterRegistry, "gc.log", parser);
+    Reporter gcLogReader = new Reporter(
+        meterRegistry, "/tmp", "gc.log", parser
+    );
     gcLogReader.start();
   }
 }
