@@ -85,6 +85,7 @@ public class Reporter implements Runnable {
           }
         }
       } catch (IOException ex) {
+
         ex.printStackTrace();
       }
     } catch (IOException | InterruptedException ex) {
