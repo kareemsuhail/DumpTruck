@@ -50,6 +50,7 @@ public class Reporter implements Runnable {
                 "[{}]: File content has been affected by event {}",
                 changed.toString(), event.kind().name()
             );
+
             if (event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
               if (changed.endsWith(logFileName)) {
 
@@ -71,7 +72,8 @@ public class Reporter implements Runnable {
                     Timer.builder(gcData.getName().name())
                         .tags("cause", gcData.getTag())
                         .register(meterRegistry)
-                        .record(new Double(gcData.getValue() * 1000).longValue(), TimeUnit.MILLISECONDS);
+                        .record(new Double(gcData.getValue() * 1000).longValue(),
+                            TimeUnit.MILLISECONDS);
                     break;
                   default:
                     break;
