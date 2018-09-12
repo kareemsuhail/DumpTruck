@@ -9,6 +9,7 @@ public class GcData {
 
   public enum Name {
     PAUSE_TIME("pause_time"),
+    CONCURRENT_MARK("concurrent_mark"),
     EMPTY("");
 
     private final String name;
