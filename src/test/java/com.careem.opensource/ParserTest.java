@@ -13,38 +13,31 @@ import org.junit.Test;
 
 public class ParserTest {
 
-  private static Parser parser;
-  private static String chunk;
-  private static String chunkDoesNotContainPause;
-  private static String chunkContainEvacuationPause;
-  private static String emptyChunk;
+  private final Parser parser;
+  private final String chunkContainsEvacuationTime;
+  private final String chunkDoesNotContainPause;
+  private final String chunkContainEvacuationPause;
+  private final String emptyChunk;
+  private final String chunkContainsCouncurrentMark;
+  private final String chunkContainsMixedGC;
+  private final String chunkContainsYoungGC;
 
-  @BeforeClass
-  public static void setup() {
+  public ParserTest() {
     parser = new Parser();
-    chunk = ", 0.0262454 secs]";
+    chunkContainsEvacuationTime = ", 0.0262454 secs]";
     chunkDoesNotContainPause = "[ObjectSynchronizer Roots (ms):  0.0  0.0  0.0  0.0\n"
         + "          Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]";
     emptyChunk = " \n ";
     chunkContainEvacuationPause = "2018-08-23T12:23:25.710+0200: 9.636: [GC pause (G1 Evacuation Pause) (young) G1HR #StartGC 8\n";
-  }
-
-  @Before
-  public void setupForEach() {
-
-  }
-
-  @Test
-  public void parse() {
-    GcData gcData = parser.parse(chunk);
-    assertThat(gcData.getName(), is(Name.PAUSE_TIME));
+    chunkContainsCouncurrentMark = "2018-08-23T12:24:04.060+0200: 47.985: [GC concurrent-mark-end, 0.7346769 secs]";
+    chunkContainsMixedGC = "2018-08-23T12:25:22.608+0200: 126.533: [GC pause (G1 Evacuation Pause) (mixed) G1HR #StartGC 253";
+    chunkContainsYoungGC = "2018-08-23T12:25:20.941+0200: 124.867: [GC pause (G1 Evacuation Pause) (young) G1HR #StartGC 248";
   }
 
   @Test
   public void parseNonPausetimeTag() {
     GcData gcData = parser.parse(chunkDoesNotContainPause);
     assertThat(gcData.getName(), not(Name.PAUSE_TIME));
-
   }
 
   @Test
@@ -58,11 +51,45 @@ public class ParserTest {
     GcData gcData = parser.parse(emptyChunk);
     assertThat(gcData.getName(), is(Name.EMPTY));
   }
+
   @Test
-  public void countEvacuationPause(){
+  public void countEvacuationPause() {
     parser.parse(chunkContainEvacuationPause);
-    assertEquals(1,parser.getEvacuationPauseCount());
+    assertEquals(1, parser.getEvacuationPauseCount());
   }
 
+  @Test
+  public void parseCouncurrentMark() {
+    GcData gcData = parser.parse(chunkContainsCouncurrentMark);
+    assertThat(gcData.getName(), is(Name.CONCURRENT_MARK));
+    assertEquals(0.7346769, gcData.getValue(), 0.001);
+    assertEquals(1, Parser.getConcurrentMarkCount());
+  }
+
+  @Test
+  public void parseMixedGC() {
+    parser.parse(chunkContainsMixedGC);
+    assertEquals(Parser.getCurrentGC(), Name.MIXED_GC);
+  }
+
+  @Test
+  public void parseMixedGCTime() {
+    GcData gcData = parser.parse(chunkContainsEvacuationTime);
+    assertEquals(0.0262454, gcData.getValue(), 0.001);
+    assertEquals(gcData.getName(), Name.MIXED_GC);
+  }
+
+  @Test
+  public void parseYoungGC() {
+    parser.parse(chunkContainsYoungGC);
+    assertEquals(Parser.getCurrentGC(), Name.YOUNG_GC);
+  }
+
+  @Test
+  public void parseYoungGCTime() {
+    GcData gcData = parser.parse(chunkContainsEvacuationTime);
+    assertEquals(0.0262454, gcData.getValue(), 0.001);
+    assertEquals(gcData.getName(), Name.YOUNG_GC);
+  }
 
 }
