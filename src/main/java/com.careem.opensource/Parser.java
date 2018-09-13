@@ -10,14 +10,21 @@ public class Parser {
   private static final Pattern DECIMAL_NUMBER_PATTERN = Pattern.compile("([0-9]*[.])?[0-9]+");
   private static int evacuationPauseCount;
   private static int concurrentMarkCount;
+  private static int MixedGCCount;
+  private static int YoungGCCount;
   // gc data matchers
   private static final String TOTAL_PAUSE_TIME_REGEX = ", \\d+\\.\\d+ secs]";
 
+  public static Name getCurrentGC() {
+    return currentGC;
+  }
 
   // gc Evacuation pause
   private static final String EVACUATION_PAUSE_REGEX = "(G1 Evacuation Pause)";
   private static final Pattern EVACUATION_PAUSE_PATTERN = Pattern.compile(TOTAL_PAUSE_TIME_REGEX);
-
+  private static final String MIXED_GC_REGEX = "(mixed) G1HR #StartGC";
+  private static final String YOUNG_GC_REGEX = "(young) G1HR #StartGC";
+  private static Name currentGC = Name.EMPTY;
   // concurrent time pattern
   private static final String CONCURRENT_MARK_REGEX = "[GC concurrent-mark-end,";
 
@@ -27,6 +34,7 @@ public class Parser {
     analyzePauseTime(gcDataBuilder, chunk);
     analyzeConcurrentMark(gcDataBuilder, chunk);
     countEvacuationPause(chunk);
+    analyzeMixedAndYoungGCs(gcDataBuilder,chunk);
     return gcDataBuilder.build();
   }
 
@@ -46,7 +54,7 @@ public class Parser {
 
   private void analyzePauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
     if (chunk.matches(TOTAL_PAUSE_TIME_REGEX)) {
-      gcDataBuilder.name(Name.PAUSE_TIME);
+      gcDataBuilder.name(Parser.currentGC);
       gcDataBuilder.tag("total");
       gcDataBuilder.value(parseDecimalNumber(chunk));
     }
@@ -81,6 +89,13 @@ public class Parser {
       gcDataBuilder.name(Name.CONCURRENT_MARK);
       gcDataBuilder.tag("concurrent_mark_time");
       gcDataBuilder.value(parseDecimalNumber(extractSecs(chunk)));
+    }
+  }
+  private void analyzeMixedAndYoungGCs(GcData.GcDataBuilder gcDataBuilder, String chunk){
+    if(chunk.contains(YOUNG_GC_REGEX)){
+      Parser.currentGC= Name.YOUNG_GC;
+    }else if(chunk.contains(MIXED_GC_REGEX)){
+      Parser.currentGC=Name.MIXED_GC;
     }
   }
 
