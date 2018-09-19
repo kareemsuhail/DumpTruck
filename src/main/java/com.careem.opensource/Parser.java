@@ -8,56 +8,57 @@ public class Parser {
 
   // generic matchers
   private static final Pattern DECIMAL_NUMBER_PATTERN = Pattern.compile("([0-9]*[.])?[0-9]+");
-  private static int evacuationPauseCount;
-  private static int concurrentMarkCount;
-  private static int MixedGCCount;
-  private static int YoungGCCount;
   // gc data matchers
   private static final String TOTAL_PAUSE_TIME_REGEX = ", \\d+\\.\\d+ secs]";
-
-  public static Name getCurrentGC() {
-    return currentGC;
-  }
-
   // gc Evacuation pause
   private static final String EVACUATION_PAUSE_REGEX = "(G1 Evacuation Pause)";
   private static final Pattern EVACUATION_PAUSE_PATTERN = Pattern.compile(TOTAL_PAUSE_TIME_REGEX);
   private static final String MIXED_GC_REGEX = "(mixed) G1HR #StartGC";
   private static final String YOUNG_GC_REGEX = "(young) G1HR #StartGC";
+  private static final String META_DATA_THRESHOLD_REGEX = "(Metadata GC Threshold)";
+  private static final String PREDICTED_BASE_TIME_REGEX = "predicted base time: \\d+\\.\\d+";
+  private static final String PREDICTED_PAUSE_TIME_REGEX = "predicted pause time: \\d+\\.\\d+";
+  private static final String MAX_PAUSE_TIME_REGEX = "-XX:MaxGCPauseMillis=\\d+";
+  private static final Pattern MAX_PAUSE_TIME_PATTERN = Pattern.compile(MAX_PAUSE_TIME_REGEX);
+  private static final Pattern PREDICTED_BASE_TIME_PATTERN = Pattern
+      .compile(PREDICTED_BASE_TIME_REGEX);
+  private static final Pattern PREDICTED_PAUSE_TIME_PATTERN = Pattern
+      .compile(PREDICTED_PAUSE_TIME_REGEX);
   private static Name currentGC = Name.EMPTY;
   // concurrent time pattern
   private static final String CONCURRENT_MARK_REGEX = "[GC concurrent-mark-end,";
 
   public GcData parse(String chunk) {
-    // TODO: 9/12/18 refator the order of execution and add a break point
     GcData.GcDataBuilder gcDataBuilder = GcData.builder();
-    analyzePauseTime(gcDataBuilder, chunk);
-    analyzeConcurrentMark(gcDataBuilder, chunk);
-    countEvacuationPause(chunk);
-    analyzeMixedAndYoungGCs(gcDataBuilder,chunk);
+    if (analyzeMixedAndYoungGCs(chunk)) {
+      return gcDataBuilder.build();
+    } else if (analyzePauseTime(gcDataBuilder, chunk)) {
+      return gcDataBuilder.build();
+    } else if (analyzePredictedBaseTime(gcDataBuilder, chunk)) {
+      return gcDataBuilder.build();
+    } else if (analyzePredictedPauseTime(gcDataBuilder, chunk)) {
+      return gcDataBuilder.build();
+    } else if (analyzeConcurrentMark(gcDataBuilder, chunk)) {
+      return gcDataBuilder.build();
+      // make sure to keep this case the last case
+    } else if (analyzeMaxPauseTime(gcDataBuilder, chunk)) {
+      return gcDataBuilder.build();
+    }
     return gcDataBuilder.build();
   }
 
-  public static int getEvacuationPauseCount() {
-    return evacuationPauseCount;
+  public static Name getCurrentGC() {
+    return currentGC;
   }
 
-  public static int getConcurrentMarkCount() {
-    return concurrentMarkCount;
-  }
-
-  private void countEvacuationPause(String chunk) {
-    if (chunk.contains(EVACUATION_PAUSE_REGEX)) {
-      evacuationPauseCount++;
-    }
-  }
-
-  private void analyzePauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
+  private boolean analyzePauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
     if (chunk.matches(TOTAL_PAUSE_TIME_REGEX)) {
       gcDataBuilder.name(Parser.currentGC);
       gcDataBuilder.tag("total");
       gcDataBuilder.value(parseDecimalNumber(chunk));
+      return true;
     }
+    return false;
   }
 
   public boolean shouldReadMoreLine(String line) {
@@ -79,24 +80,65 @@ public class Parser {
     if (matcher.find()) {
       return matcher.group(0);
     } else {
-      return "1.21 secs]";
+      return "0.00 secs]";
     }
   }
 
-  private void analyzeConcurrentMark(GcData.GcDataBuilder gcDataBuilder, String chunk) {
+  private boolean analyzeConcurrentMark(GcData.GcDataBuilder gcDataBuilder, String chunk) {
     if (chunk.contains(CONCURRENT_MARK_REGEX)) {
-      concurrentMarkCount++;
       gcDataBuilder.name(Name.CONCURRENT_MARK);
       gcDataBuilder.tag("concurrent_mark_time");
       gcDataBuilder.value(parseDecimalNumber(extractSecs(chunk)));
+      return true;
     }
+    return false;
   }
-  private void analyzeMixedAndYoungGCs(GcData.GcDataBuilder gcDataBuilder, String chunk){
-    if(chunk.contains(YOUNG_GC_REGEX)){
-      Parser.currentGC= Name.YOUNG_GC;
-    }else if(chunk.contains(MIXED_GC_REGEX)){
-      Parser.currentGC=Name.MIXED_GC;
+
+  private boolean analyzeMixedAndYoungGCs(String chunk) {
+    if (chunk.contains(YOUNG_GC_REGEX)) {
+      Parser.currentGC = Name.YOUNG_GC;
+      return true;
+    } else if (chunk.contains(MIXED_GC_REGEX)) {
+      Parser.currentGC = Name.MIXED_GC;
+      return true;
     }
+    return false;
+  }
+
+  private boolean analyzePredictedBaseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
+    Matcher predictedBaseTimeMatcher = PREDICTED_BASE_TIME_PATTERN.matcher(chunk);
+    if (predictedBaseTimeMatcher.find()) {
+      double secs = parseDecimalNumber(predictedBaseTimeMatcher.group(0));
+      gcDataBuilder.name(Name.PREDICTED_BASE_TIME);
+      gcDataBuilder.value(secs);
+      gcDataBuilder.tag("predicted_base_time");
+      return true;
+    }
+    return false;
+  }
+
+  private boolean analyzePredictedPauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
+    Matcher predictedBaseTimeMatcher = PREDICTED_PAUSE_TIME_PATTERN.matcher(chunk);
+    if (predictedBaseTimeMatcher.find()) {
+      double value = parseDecimalNumber(predictedBaseTimeMatcher.group(0));
+      gcDataBuilder.name(Name.PREDICTED_PAUSE_TIME);
+      gcDataBuilder.value(value);
+      gcDataBuilder.tag("predicted_pause_time");
+      return true;
+    }
+    return false;
+  }
+
+  private boolean analyzeMaxPauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
+    Matcher maxPauseTimeMatcher = MAX_PAUSE_TIME_PATTERN.matcher(chunk);
+    if (maxPauseTimeMatcher.find()) {
+      double value = parseDecimalNumber(maxPauseTimeMatcher.group(0));
+      gcDataBuilder.name(Name.MAX_PAUSE_TIME);
+      gcDataBuilder.value(value);
+      gcDataBuilder.tag("max_pause_time");
+      return true;
+    }
+    return false;
   }
 
 }
