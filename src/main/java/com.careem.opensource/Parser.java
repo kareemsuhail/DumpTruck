@@ -3,6 +3,7 @@ package com.careem.opensource;
 import com.careem.opensource.GcData.Name;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import lombok.Getter;
 
 public class Parser {
 
@@ -24,6 +25,7 @@ public class Parser {
       .compile(PREDICTED_BASE_TIME_REGEX);
   private static final Pattern PREDICTED_PAUSE_TIME_PATTERN = Pattern
       .compile(PREDICTED_PAUSE_TIME_REGEX);
+  @Getter
   private static Name currentGC = Name.EMPTY;
   // concurrent time pattern
   private static final String CONCURRENT_MARK_REGEX = "[GC concurrent-mark-end,";
@@ -47,18 +49,15 @@ public class Parser {
     return gcDataBuilder.build();
   }
 
-  public static Name getCurrentGC() {
-    return currentGC;
-  }
-
   private boolean analyzePauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
     if (chunk.matches(TOTAL_PAUSE_TIME_REGEX)) {
       gcDataBuilder.name(Parser.currentGC);
       gcDataBuilder.tag("total");
       gcDataBuilder.value(parseDecimalNumber(chunk));
       return true;
+    } else {
+      return false;
     }
-    return false;
   }
 
   public boolean shouldReadMoreLine(String line) {
@@ -77,11 +76,8 @@ public class Parser {
 
   private String extractSecs(String chunk) {
     Matcher matcher = EVACUATION_PAUSE_PATTERN.matcher(chunk);
-    if (matcher.find()) {
-      return matcher.group(0);
-    } else {
-      return "0.00 secs]";
-    }
+    matcher.find();
+    return matcher.group(0);
   }
 
   private boolean analyzeConcurrentMark(GcData.GcDataBuilder gcDataBuilder, String chunk) {
@@ -90,8 +86,9 @@ public class Parser {
       gcDataBuilder.tag("concurrent_mark_time");
       gcDataBuilder.value(parseDecimalNumber(extractSecs(chunk)));
       return true;
+    } else {
+      return false;
     }
-    return false;
   }
 
   private boolean analyzeMixedAndYoungGCs(String chunk) {
@@ -113,8 +110,9 @@ public class Parser {
       gcDataBuilder.value(secs);
       gcDataBuilder.tag("predicted_base_time");
       return true;
+    } else {
+      return false;
     }
-    return false;
   }
 
   private boolean analyzePredictedPauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
@@ -125,8 +123,9 @@ public class Parser {
       gcDataBuilder.value(value);
       gcDataBuilder.tag("predicted_pause_time");
       return true;
+    } else {
+      return false;
     }
-    return false;
   }
 
   private boolean analyzeMaxPauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
@@ -137,8 +136,8 @@ public class Parser {
       gcDataBuilder.value(value);
       gcDataBuilder.tag("max_pause_time");
       return true;
+    } else {
+      return false;
     }
-    return false;
   }
-
 }
