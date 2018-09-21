@@ -2,25 +2,25 @@ package com.careem.opensource;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKinds;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class Reporter implements Runnable {
 
+  private final ScheduledExecutorService scheduler;
   private final MeterRegistry meterRegistry;
   private final String logFileDirectory;
   private final String logFileName;
   private final Parser parser;
+  private int lastKnownLine;
 
   public Reporter(
       MeterRegistry meterRegistry, String logFileDirectory, String logFileName, Parser parser
@@ -29,73 +29,77 @@ public class Reporter implements Runnable {
     this.logFileDirectory = logFileDirectory;
     this.logFileName = logFileName;
     this.parser = parser;
+    scheduler = Executors.newScheduledThreadPool(1);
   }
 
   @Override
   public void run() {
     log.info("Running Garbage Collector Reporter");
     Path logFilePath = FileSystems.getDefault().getPath(logFileDirectory + "/" + logFileName);
-    try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
-      Path logFileDirectoryPath = FileSystems.getDefault().getPath(logFileDirectory);
-      logFileDirectoryPath.register(
-          watchService, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW
-      );
-
-      try (BufferedReader bufferedReader = Files.newBufferedReader(logFilePath)) {
-        WatchKey watchKey;
-        while ((watchKey = watchService.take()) != null) {
-          for (WatchEvent<?> event : watchKey.pollEvents()) {
-            Path changed = (Path) event.context();
-            log.debug(
-                "[{}]: File content has been affected by event {}",
-                changed.toString(), event.kind().name()
-            );
-
-            if (event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
-              if (changed.endsWith(logFileName)) {
-
-                // read lines until the chunk data makes sense
-                StringBuilder chunkBuilder = new StringBuilder();
-                String line;
-                do {
-                  line = bufferedReader.readLine();
-                  log.debug("{}", line);
-                  chunkBuilder.append(line);
-                } while (parser.shouldReadMoreLine(line));
-                String chunk = chunkBuilder.toString();
-
-                // parse and report
-                GcData gcData = parser.parse(chunk);
-                log.debug("{}", gcData);
-                switch (gcData.getName()) {
-                  case PAUSE_TIME:
-                    Timer.builder(gcData.getName().name())
-                        .tags("cause", gcData.getTag())
-                        .register(meterRegistry)
-                        .record(new Double(gcData.getValue() * 1000).longValue(),
-                            TimeUnit.MILLISECONDS);
-                    break;
-                  default:
-                    break;
-                }
-              }
-            }
-          }
-
-          if (!watchKey.reset()) {
-            log.error("Error occurred while resetting watchKey");
-          }
-        }
-      } catch (IOException ex) {
-
-        ex.printStackTrace();
+    try (Stream<String> linesStream = Files.lines(logFilePath)) {
+      Stream<String> numberOfLinesStream = Files.lines(logFilePath);
+      long count = numberOfLinesStream.count();
+      numberOfLinesStream.close();
+      if (count == lastKnownLine) {
+        log.info("end of file");
+        return;
       }
-    } catch (IOException | InterruptedException ex) {
-      ex.printStackTrace();
+      if (count < lastKnownLine) {
+        log.info("re-read file");
+        lastKnownLine = 0;
+      }
+      linesStream.skip(lastKnownLine).forEach(line -> {
+        lastKnownLine += 1;
+        GcData gcData = parser.parse(line);
+        log.debug("{}", line);
+        log.debug("{}", gcData);
+        switch (gcData.getName()) {
+          case YOUNG_GC:
+            Timer.builder(gcData.getName().name())
+                .tags("cause", gcData.getTag())
+                .register(meterRegistry)
+                .record(new Double(gcData.getValue() * 1000).longValue(),
+                    TimeUnit.MILLISECONDS);
+            break;
+          case MIXED_GC:
+            Timer.builder(gcData.getName().name())
+                .tags("cause", gcData.getTag())
+                .register(meterRegistry)
+                .record(new Double(gcData.getValue() * 1000).longValue(),
+                    TimeUnit.MILLISECONDS);
+            break;
+          case PREDICTED_BASE_TIME:
+            Timer.builder(gcData.getName().name())
+                .tags("cause", gcData.getTag())
+                .register(meterRegistry)
+                .record(new Double(gcData.getValue()).longValue(),
+                    TimeUnit.MILLISECONDS);
+            break;
+          case PREDICTED_PAUSE_TIME:
+            Timer.builder(gcData.getName().name())
+                .tags("cause", gcData.getTag())
+                .register(meterRegistry)
+                .record(new Double(gcData.getValue()).longValue(),
+                    TimeUnit.MILLISECONDS);
+            break;
+          case CONCURRENT_MARK:
+            Timer.builder(gcData.getName().name())
+                .tags("cause", gcData.getTag())
+                .register(meterRegistry)
+                .record(new Double(gcData.getValue() * 1000).longValue(),
+                    TimeUnit.MILLISECONDS);
+            break;
+          default:
+            break;
+        }
+      });
+    } catch (IOException e) {
+      e.printStackTrace();
     }
   }
 
   public void start() {
+    scheduler.scheduleAtFixedRate(this, 5000, 5000, TimeUnit.MILLISECONDS);
     new Thread(this).start();
   }
 }

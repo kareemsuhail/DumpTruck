@@ -45,12 +45,6 @@ public class ParserTest {
   }
 
   @Test
-  public void parseMoreThanOneLine() {
-    boolean shouldReadMoreLine = PARSER.shouldReadMoreLine(CHUNK_DOES_NOT_CONTAIN_PAUSE);
-    assertTrue(shouldReadMoreLine);
-  }
-
-  @Test
   public void parseEmptyChunk() {
     GcData gcData = PARSER.parse(EMPTY_CHUNK);
     assertThat(gcData.getName(), is(Name.EMPTY));
@@ -59,7 +53,6 @@ public class ParserTest {
   @Test
   public void countEvacuationPause() {
     PARSER.parse(CHUNK_CONTAINS_EVACUATION_PAUSE);
-
   }
 
   @Test
@@ -67,7 +60,6 @@ public class ParserTest {
     GcData gcData = PARSER.parse(CHUNK_CONTAINS_CONCURRENT_MARK);
     assertThat(gcData.getName(), is(Name.CONCURRENT_MARK));
     assertEquals(0.7346769, gcData.getValue(), 0.001);
-
   }
 
   @Test
