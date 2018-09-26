@@ -10,10 +10,13 @@ public class Parser {
   // generic matchers
   private static final Pattern DECIMAL_NUMBER_PATTERN = Pattern.compile("([0-9]*[.])?[0-9]+");
   // gc data matchers
-  private static final String TOTAL_PAUSE_TIME_REGEX = ", \\d+\\.\\d+ secs]";
+  private static final String PAUSE_TIME_REGEX = "^, \\d+\\.\\d+ secs]";
+  private static final String CONCURRENT_MARK_TIME_REGEX = ", \\d+\\.\\d+ secs]";
+  private static final Pattern CONCURRENT_MARK_TIME_PATTERN = Pattern
+      .compile(CONCURRENT_MARK_TIME_REGEX);
   // gc Evacuation pause
   private static final String EVACUATION_PAUSE_REGEX = "(G1 Evacuation Pause)";
-  private static final Pattern EVACUATION_PAUSE_PATTERN = Pattern.compile(TOTAL_PAUSE_TIME_REGEX);
+  private static final Pattern PAUSE_TIME_PATTERN = Pattern.compile(PAUSE_TIME_REGEX);
   private static final String MIXED_GC_REGEX = "(mixed) G1HR #StartGC";
   private static final String YOUNG_GC_REGEX = "(young) G1HR #StartGC";
   private static final String META_DATA_THRESHOLD_REGEX = "(Metadata GC Threshold)";
@@ -50,7 +53,7 @@ public class Parser {
   }
 
   private boolean analyzePauseTime(GcData.GcDataBuilder gcDataBuilder, String chunk) {
-    if (chunk.matches(TOTAL_PAUSE_TIME_REGEX)) {
+    if (chunk.matches(PAUSE_TIME_REGEX)) {
       gcDataBuilder.name(Parser.currentGC);
       gcDataBuilder.tag("total");
       gcDataBuilder.value(parseDecimalNumber(chunk));
@@ -58,11 +61,6 @@ public class Parser {
     } else {
       return false;
     }
-  }
-
-  public boolean shouldReadMoreLine(String line) {
-    //TODO: there are records that span multiple lines. We need to parse and read until the data makes sense
-    return false;
   }
 
   private double parseDecimalNumber(String line) {
@@ -74,8 +72,8 @@ public class Parser {
     }
   }
 
-  private String extractSecs(String chunk) {
-    Matcher matcher = EVACUATION_PAUSE_PATTERN.matcher(chunk);
+  private String extractConcurrentSecs(String chunk) {
+    Matcher matcher = CONCURRENT_MARK_TIME_PATTERN.matcher(chunk);
     matcher.find();
     return matcher.group(0);
   }
@@ -84,7 +82,7 @@ public class Parser {
     if (chunk.contains(CONCURRENT_MARK_REGEX)) {
       gcDataBuilder.name(Name.CONCURRENT_MARK);
       gcDataBuilder.tag("concurrent_mark_time");
-      gcDataBuilder.value(parseDecimalNumber(extractSecs(chunk)));
+      gcDataBuilder.value(parseDecimalNumber(extractConcurrentSecs(chunk)));
       return true;
     } else {
       return false;
