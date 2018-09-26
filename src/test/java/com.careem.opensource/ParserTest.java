@@ -4,7 +4,6 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import com.careem.opensource.GcData.Name;
 import org.junit.Test;
@@ -30,7 +29,7 @@ public class ParserTest {
         + "          Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]";
     EMPTY_CHUNK = " \n ";
     CHUNK_CONTAINS_EVACUATION_PAUSE = "2018-08-23T12:23:25.710+0200: 9.636: [GC pause (G1 Evacuation Pause) (young) G1HR #StartGC 8\n";
-    CHUNK_CONTAINS_CONCURRENT_MARK = "2018-08-23T12:24:04.060+0200: 47.985: [GC concurrent-mark-end, 0.7346769 secs]";
+    CHUNK_CONTAINS_CONCURRENT_MARK = "2018-08-23T12:24:04.060+0200: 47.985: [GC concurrent-mark-end, 0.7346769 secs]\n";
     CHUNK_CONTAINS_MIXED_GC = "2018-08-23T12:25:22.608+0200: 126.533: [GC pause (G1 Evacuation Pause) (mixed) G1HR #StartGC 253";
     CHUNK_CONTAINS_YOUNG_GC = "2018-08-23T12:25:20.941+0200: 124.867: [GC pause (G1 Evacuation Pause) (young) G1HR #StartGC 248";
     CHUNK_CONTAINS_PREDICTED_BASE_TIME = " 17.943: [G1Ergonomics (CSet Construction) start choosing CSet, _pending_cards: 2096, predicted base time: 16.93 ms, remaining time: 33.07 ms, target pause time: 50.00 ms]";
@@ -39,7 +38,7 @@ public class ParserTest {
   }
 
   @Test
-  public void parseNonPausetimeTag() {
+  public void parseNonPauseTimeTag() {
     GcData gcData = PARSER.parse(CHUNK_DOES_NOT_CONTAIN_PAUSE);
     assertThat(gcData.getName(), not(Name.PAUSE_TIME));
   }
@@ -56,7 +55,7 @@ public class ParserTest {
   }
 
   @Test
-  public void parseCouncurrentMark() {
+  public void parseConcurrentMark() {
     GcData gcData = PARSER.parse(CHUNK_CONTAINS_CONCURRENT_MARK);
     assertThat(gcData.getName(), is(Name.CONCURRENT_MARK));
     assertEquals(0.7346769, gcData.getValue(), 0.001);
@@ -96,7 +95,7 @@ public class ParserTest {
   }
 
   @Test
-  public void parsePredictedPasueTime() {
+  public void parsePredictedPauseTime() {
     GcData gcData = PARSER.parse(CHUNK_CONTAINS_PREDICTED_PAUSE_TIME);
     assertEquals(gcData.getName(), Name.PREDICTED_PAUSE_TIME);
     assertEquals(48.52, gcData.getValue(), 0.01);

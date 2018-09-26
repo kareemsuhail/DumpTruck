@@ -51,8 +51,11 @@ public class Reporter implements Runnable {
       linesStream.skip(lastKnownLine).forEach(line -> {
         lastKnownLine += 1;
         GcData gcData = parser.parse(line);
-        log.debug("{}", line);
-        log.debug("{}", gcData);
+        try {
+          Thread.sleep(1);
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
         switch (gcData.getName()) {
           case YOUNG_GC:
             Timer.builder(gcData.getName().name())
@@ -88,6 +91,12 @@ public class Reporter implements Runnable {
                 .register(meterRegistry)
                 .record(new Double(gcData.getValue() * 1000).longValue(),
                     TimeUnit.MILLISECONDS);
+          case MAX_PAUSE_TIME:
+            Timer.builder(gcData.getName().name())
+                .tags("cause", gcData.getTag())
+                .register(meterRegistry)
+                .record(new Double(gcData.getValue()).longValue(),
+                    TimeUnit.MILLISECONDS);
             break;
           default:
             break;
@@ -99,7 +108,7 @@ public class Reporter implements Runnable {
   }
 
   public void start() {
-    scheduler.scheduleAtFixedRate(this, 5000, 5000, TimeUnit.MILLISECONDS);
+    scheduler.scheduleAtFixedRate(this, 600000, 600000, TimeUnit.MILLISECONDS);
     new Thread(this).start();
   }
 }
