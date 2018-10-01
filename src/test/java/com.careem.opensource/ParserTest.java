@@ -3,6 +3,7 @@ package com.careem.opensource;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.junit.Assert.assertEquals;
 
 import com.careem.opensource.GcData.Name;
@@ -21,6 +22,7 @@ public class ParserTest {
   private final String CHUNK_CONTAINS_PREDICTED_BASE_TIME;
   private final String CHUNK_CONTAINS_PREDICTED_PAUSE_TIME;
   private final String CHUNK_CONTAINS_MAX_PAUSE_TIME;
+  private final String CHUNK_CONTAINS_STRING_DEDUPLICATION;
 
   public ParserTest() {
     PARSER = new Parser();
@@ -35,6 +37,7 @@ public class ParserTest {
     CHUNK_CONTAINS_PREDICTED_BASE_TIME = " 17.943: [G1Ergonomics (CSet Construction) start choosing CSet, _pending_cards: 2096, predicted base time: 16.93 ms, remaining time: 33.07 ms, target pause time: 50.00 ms]";
     CHUNK_CONTAINS_PREDICTED_PAUSE_TIME = "223.951: [G1Ergonomics (CSet Construction) finish choosing CSet, eden: 94 regions, survivors: 8 regions, old: 0 regions, predicted pause time: 48.52 ms, target pause time: 50.00 ms]";
     CHUNK_CONTAINS_MAX_PAUSE_TIME = "-XX:InitiatingHeapOccupancyPercent=0 -XX:MaxGCPauseMillis=50 -XX:MaxHeapSize=4294967296 -XX:NumberOfGCLogFiles=5 -XX:+PreserveFramePointer -XX:+PrintAdaptiveSizePolicy -XX:+PrintFlagsFinal -XX:+PrintGC -XX";
+    CHUNK_CONTAINS_STRING_DEDUPLICATION = "[GC concurrent-string-deduplication, deleted 0 entries, 0.0000005 secs]";
   }
 
   @Test
@@ -106,5 +109,12 @@ public class ParserTest {
     GcData gcData = PARSER.parse(CHUNK_CONTAINS_MAX_PAUSE_TIME);
     assertEquals(gcData.getName(), Name.MAX_PAUSE_TIME);
     assertEquals(50, gcData.getValue(), 0.01);
+  }
+
+  @Test
+  public void parseStringDeduplication() {
+    GcData gcData = PARSER.parse(CHUNK_CONTAINS_STRING_DEDUPLICATION);
+    assertEquals(gcData.getName(), Name.STRING_DEDUPLICATION);
+    assertEquals(0.0000005, gcData.getValue(), 0.0000001);
   }
 }

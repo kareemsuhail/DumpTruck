@@ -1,7 +1,8 @@
 package com.careem.opensource;
 
+import com.careem.opensource.GcData.Name;
+import com.google.common.collect.EvictingQueue;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -21,6 +22,7 @@ public class Reporter implements Runnable {
   private final String logFileName;
   private final Parser parser;
   private int lastKnownLine;
+  private Cache cache;
 
   public Reporter(
       MeterRegistry meterRegistry, String logFileDirectory, String logFileName, Parser parser
@@ -30,6 +32,7 @@ public class Reporter implements Runnable {
     this.logFileName = logFileName;
     this.parser = parser;
     scheduler = Executors.newScheduledThreadPool(1);
+    this.cache = new Cache();
   }
 
   @Override
@@ -51,55 +54,8 @@ public class Reporter implements Runnable {
       linesStream.skip(lastKnownLine).forEach(line -> {
         lastKnownLine += 1;
         GcData gcData = parser.parse(line);
-        try {
-          Thread.sleep(1);
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
-        switch (gcData.getName()) {
-          case YOUNG_GC:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue() * 1000).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          case MIXED_GC:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue() * 1000).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          case PREDICTED_BASE_TIME:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue()).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          case PREDICTED_PAUSE_TIME:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue()).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          case CONCURRENT_MARK:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue() * 1000).longValue(),
-                    TimeUnit.MILLISECONDS);
-          case MAX_PAUSE_TIME:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue()).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          default:
-            break;
+        if (gcData.getName() != Name.EMPTY) {
+          cache.addItem(gcData);
         }
       });
     } catch (IOException e) {
@@ -107,8 +63,12 @@ public class Reporter implements Runnable {
     }
   }
 
+  public EvictingQueue getDate() {
+    return this.cache.getData();
+  }
+
   public void start() {
-    scheduler.scheduleAtFixedRate(this, 600000, 600000, TimeUnit.MILLISECONDS);
+    scheduler.scheduleAtFixedRate(this, 60000, 60000, TimeUnit.MILLISECONDS);
     new Thread(this).start();
   }
 }
