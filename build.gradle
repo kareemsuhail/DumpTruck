@@ -23,7 +23,6 @@ jar {
 }
 
 dependencies {
-    compile group: 'io.micrometer', name: 'micrometer-registry-prometheus', version: 'latest.release'
     compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.2'
     apt group: 'org.projectlombok', name: 'lombok', version: '1.18.2'
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
