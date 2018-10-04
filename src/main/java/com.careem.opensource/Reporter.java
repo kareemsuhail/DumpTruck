@@ -2,11 +2,12 @@ package com.careem.opensource;
 
 import com.careem.opensource.GcData.Name;
 import com.google.common.collect.EvictingQueue;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -17,17 +18,21 @@ import lombok.extern.slf4j.Slf4j;
 public class Reporter implements Runnable {
 
   private final ScheduledExecutorService scheduler;
-  private final MeterRegistry meterRegistry;
   private final String logFileDirectory;
   private final String logFileName;
   private final Parser parser;
   private int lastKnownLine;
   private Cache cache;
 
+  /**
+   * @param logFileDirectory the path of your GC log file directory
+   * @param logFileName the name of GC log file
+   * @param parser Parser instance
+   */
   public Reporter(
-      MeterRegistry meterRegistry, String logFileDirectory, String logFileName, Parser parser
+      String logFileDirectory, String logFileName, Parser parser
   ) {
-    this.meterRegistry = meterRegistry;
+
     this.logFileDirectory = logFileDirectory;
     this.logFileName = logFileName;
     this.parser = parser;
@@ -63,10 +68,28 @@ public class Reporter implements Runnable {
     }
   }
 
+  /**
+   * @return EvictingQueue contains cache data
+   */
   public EvictingQueue getDate() {
     return this.cache.getData();
   }
 
+  /**
+   * @param endpoint string represents Data endpoint URL
+   * @return HTML page
+   */
+  public String getDashboard(String endpoint) {
+    ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+    InputStream is = classloader.getResourceAsStream("templates/gc_dashboard.html");
+    Scanner s = new Scanner(is).useDelimiter("\\A");
+    String result = s.hasNext() ? s.next() : "";
+    return result.replace("endpoint", endpoint);
+  }
+
+  /**
+   * starts a parsing engine
+   */
   public void start() {
     scheduler.scheduleAtFixedRate(this, 60000, 60000, TimeUnit.MILLISECONDS);
     new Thread(this).start();

@@ -145,6 +145,7 @@ public class Parser {
       double secs = parseDecimalNumber(predictedBaseTimeMatcher.group(0));
       gcDataBuilder.name(Name.PREDICTED_BASE_TIME);
       gcDataBuilder.value(secs);
+      gcDataBuilder.timestamp(Parser.currentTime);
       return true;
     } else {
       return false;
@@ -157,6 +158,7 @@ public class Parser {
       double value = parseDecimalNumber(predictedBaseTimeMatcher.group(0));
       gcDataBuilder.name(Name.PREDICTED_PAUSE_TIME);
       gcDataBuilder.value(value);
+      gcDataBuilder.timestamp(Parser.currentTime);
       return true;
     } else {
       return false;

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+          integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+</head>
+<body>
+<div class="container">
+    <div class="row">
+        <div class="card" style="width: 100%">
+            <div class="card-header" style="background-color: cornflowerblue;color:white">
+                Young GCs pause time
+            </div>
+            <div class="card-body">
+                <canvas id="young_gc_chart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="card" style="width: 100%">
+            <div class="card-header" style="background-color: cornflowerblue;color:white">
+                Mixed GCs pause time
+            </div>
+            <div class="card-body">
+                <canvas id="mixed_gc_chart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="card" style="width: 100%">
+            <div class="card-header" style="background-color: cornflowerblue;color:white">
+                Mixed GCs pause time
+            </div>
+            <div class="card-body">
+                <canvas id="predicted_base_time_chart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="card" style="width: 100%">
+            <div class="card-header" style="background-color: cornflowerblue;color:white">
+                Mixed GCs pause time
+            </div>
+            <div class="card-body">
+                <canvas id="predicted_pause_time_chart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="card" style="width: 100%">
+            <div class="card-header" style="background-color: cornflowerblue;color:white">
+                Mixed GCs pause time
+            </div>
+            <div class="card-body">
+                <canvas id="string_deduplication_chart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="card" style="width: 50%">
+            <div class="card-header" style="background-color: cornflowerblue;color:white">
+                Mixed GCs pause time
+            </div>
+            <div class="card-body">
+                <canvas id="avg_gc_exceed"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/moment.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+        integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"
+        integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+  moment().format();
+  const ctx = document.getElementById('young_gc_chart').getContext('2d');
+  const ctx2 = document.getElementById('avg_gc_exceed').getContext('2d');
+  const mixed_gc_canvas = document.getElementById('mixed_gc_chart').getContext('2d');
+  const predicted_base_time_canvas = document.getElementById('predicted_base_time_chart').getContext('2d');
+  const predicted_pause_time_canvas = document.getElementById('predicted_pause_time_chart').getContext('2d');
+  const string_deduplication_canvas = document.getElementById('string_deduplication_chart').getContext('2d');
+
+  axios.get('http://localhost:8080/gcd')
+  .then(function (response) {
+    const young_gcs = response.data.filter(item => {
+      return (item.name == "YOUNG_GC");
+  });
+    const mixed_gcs = response.data.filter(item => {
+      return (item.name == "MIXED_GC");
+
+  });
+    const predicted_base_time = response.data.filter(item => {
+      return (item.name == "PREDICTED_BASE_TIME");
+
+  });
+    const predicted_pause_time = response.data.filter(item => {
+      return (item.name == "PREDICTED_PAUSE_TIME");
+
+  }
+  );
+    const string_deduplication = response.data.filter(item => {
+      return (item.name == "STRING_DEDUPLICATION");
+  });
+    let number_of_young_gcs_more_than_goal = 0;
+    const young_gc_data = young_gcs.map(item => {
+      if (item.value * 1000 > 50) {
+      number_of_young_gcs_more_than_goal++;
+    }
+
+    return {x: new Date(item.timestamp), y: item.value * 1000}
+
+  });
+    const mixed_gc_data = mixed_gcs.map(item => {
+      if (item.value * 1000 > 50) {
+      number_of_young_gcs_more_than_goal++;
+    }
+
+    return {x: new Date(item.timestamp), y: item.value * 1000}
+
+  });
+    const predicted_base_time_data = predicted_base_time.map(item => {
+      return {x: new Date(item.timestamp), y: item.value}
+
+    });
+    const predicted_pause_time_data = predicted_pause_time.map(item => {
+      return {x: new Date(item.timestamp), y: item.value}
+
+    });
+    const string_deduplication_date = string_deduplication.map(item => {
+      return {x: new Date(item.timestamp), y: item.value * 1000}
+
+    });
+    const chart = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'young_gcs',
+          data: young_gc_data,
+          backgroundColor: "cornflowerblue"
+        }]
+      },
+      options: {
+        scales: {
+          xAxes: [{
+            type: 'time',
+            display: true,
+            scaleLabel: {
+              display: true,
+              labelString: "Date",
+            }
+          }]
+        }
+      }
+    });
+    const chart2 = new Chart(ctx2, {
+      type: 'pie',
+      data: {
+        datasets: [{
+          data: [number_of_young_gcs_more_than_goal, young_gcs.length],
+          backgroundColor: ["#ff0019", "#3bff00"]
+        },
+        ],
+
+        // These labels appear in the legend and in the tooltips when hovering different arcs
+        labels: [
+          'GCs exceed goal',
+          'GCs match goal'
+        ]
+      }
+
+    });
+    const mixed_gc_chart = new Chart(mixed_gc_canvas, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'mixed_gcs',
+          data: mixed_gc_data,
+          backgroundColor: "cornflowerblue"
+        }]
+      },
+      options: {
+        scales: {
+          xAxes: [{
+            type: 'time',
+            display: true,
+            scaleLabel: {
+              display: true,
+              labelString: "Date",
+            }
+          }]
+        }
+      }
+    });
+    const predicted_pause_time_chart = new Chart(predicted_pause_time_canvas, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'predicted_pause_time',
+          data: predicted_pause_time_data,
+          backgroundColor: "cornflowerblue"
+        }]
+      },
+      options: {
+        scales: {
+          xAxes: [{
+            type: 'time',
+            display: true,
+            scaleLabel: {
+              display: true,
+              labelString: "Date",
+            }
+          }],
+          yAxes: [{
+            ticks: {
+              max: 500
+            }
+          }]
+        }
+      }
+    });
+    const predicted_base_time_chart = new Chart(predicted_base_time_canvas, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'predicted_base_time',
+          data: predicted_base_time_data,
+          backgroundColor: "cornflowerblue"
+        }]
+      },
+      options: {
+        scales: {
+          xAxes: [{
+            type: 'time',
+            display: true,
+            scaleLabel: {
+              display: true,
+              labelString: "Date",
+            }
+          }]
+        }
+      }
+    });
+    const string_deduplication_chart = new Chart(string_deduplication_canvas, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'string_deduplication',
+          data: string_deduplication_date,
+          backgroundColor: "cornflowerblue"
+        }]
+      },
+      options: {
+        scales: {
+          xAxes: [{
+            type: 'time',
+            display: true,
+            scaleLabel: {
+              display: true,
+              labelString: "Date",
+            }
+          }]
+        }
+      }
+    });
+
+  }).catch(function (error) {
+    console.log(error)
+  });
+
+</script>
+</body>
+</html>
