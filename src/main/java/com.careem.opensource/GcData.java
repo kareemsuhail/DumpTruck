@@ -15,6 +15,7 @@ public class GcData {
     PREDICTED_BASE_TIME("predicted_base_time"),
     PREDICTED_PAUSE_TIME("predicted_pause_time"),
     MAX_PAUSE_TIME("max_pause_time"),
+    STRING_DEDUPLICATION("string_deduplication"),
     EMPTY("");
 
     private final String name;
@@ -32,10 +33,8 @@ public class GcData {
   Name name = Name.EMPTY;
 
   @Builder.Default
-  String tag = "";
+  long timestamp = System.currentTimeMillis();
 
   @Builder.Default
   double value = 0.0;
-
-  boolean shouldReadMoreLine;
 }

@@ -1,11 +1,13 @@
 package com.careem.opensource;
 
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
+import com.careem.opensource.GcData.Name;
+import com.google.common.collect.EvictingQueue;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -16,20 +18,26 @@ import lombok.extern.slf4j.Slf4j;
 public class Reporter implements Runnable {
 
   private final ScheduledExecutorService scheduler;
-  private final MeterRegistry meterRegistry;
   private final String logFileDirectory;
   private final String logFileName;
   private final Parser parser;
   private int lastKnownLine;
+  private Cache cache;
 
+  /**
+   * @param logFileDirectory the path of your GC log file directory
+   * @param logFileName the name of GC log file
+   * @param parser Parser instance
+   */
   public Reporter(
-      MeterRegistry meterRegistry, String logFileDirectory, String logFileName, Parser parser
+      String logFileDirectory, String logFileName, Parser parser
   ) {
-    this.meterRegistry = meterRegistry;
+
     this.logFileDirectory = logFileDirectory;
     this.logFileName = logFileName;
     this.parser = parser;
     scheduler = Executors.newScheduledThreadPool(1);
+    this.cache = new Cache();
   }
 
   @Override
@@ -51,46 +59,8 @@ public class Reporter implements Runnable {
       linesStream.skip(lastKnownLine).forEach(line -> {
         lastKnownLine += 1;
         GcData gcData = parser.parse(line);
-        log.debug("{}", line);
-        log.debug("{}", gcData);
-        switch (gcData.getName()) {
-          case YOUNG_GC:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue() * 1000).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          case MIXED_GC:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue() * 1000).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          case PREDICTED_BASE_TIME:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue()).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          case PREDICTED_PAUSE_TIME:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue()).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          case CONCURRENT_MARK:
-            Timer.builder(gcData.getName().name())
-                .tags("cause", gcData.getTag())
-                .register(meterRegistry)
-                .record(new Double(gcData.getValue() * 1000).longValue(),
-                    TimeUnit.MILLISECONDS);
-            break;
-          default:
-            break;
+        if (gcData.getName() != Name.EMPTY) {
+          cache.addItem(gcData);
         }
       });
     } catch (IOException e) {
@@ -98,8 +68,30 @@ public class Reporter implements Runnable {
     }
   }
 
+  /**
+   * @return EvictingQueue contains cache data
+   */
+  public EvictingQueue getDate() {
+    return this.cache.getData();
+  }
+
+  /**
+   * @param endpoint string represents Data endpoint URL
+   * @return HTML page
+   */
+  public String getDashboard(String endpoint) {
+    ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+    InputStream is = classloader.getResourceAsStream("templates/gc_dashboard.html");
+    Scanner s = new Scanner(is).useDelimiter("\\A");
+    String result = s.hasNext() ? s.next() : "";
+    return result.replace("endpoint", endpoint);
+  }
+
+  /**
+   * starts a parsing engine
+   */
   public void start() {
-    scheduler.scheduleAtFixedRate(this, 5000, 5000, TimeUnit.MILLISECONDS);
+    scheduler.scheduleAtFixedRate(this, 60000, 60000, TimeUnit.MILLISECONDS);
     new Thread(this).start();
   }
 }
