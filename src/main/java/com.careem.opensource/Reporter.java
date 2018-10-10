@@ -30,14 +30,14 @@ public class Reporter implements Runnable {
    * @param parser Parser instance
    */
   public Reporter(
-      String logFileDirectory, String logFileName, Parser parser
+      String logFileDirectory, String logFileName, Parser parser,int cacheSize
   ) {
 
     this.logFileDirectory = logFileDirectory;
     this.logFileName = logFileName;
     this.parser = parser;
     scheduler = Executors.newScheduledThreadPool(1);
-    this.cache = new Cache();
+    this.cache = new Cache(cacheSize);
   }
 
   @Override

@@ -6,8 +6,8 @@ public class Cache {
 
   private EvictingQueue data;
 
-  public Cache() {
-    this.data = EvictingQueue.create(10000);
+  public Cache(int size) {
+    this.data = EvictingQueue.create(size);
   }
 
   public void addItem(GcData gcData) {
